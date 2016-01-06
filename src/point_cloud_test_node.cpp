@@ -5,15 +5,17 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/visualization/cloud_viewer.h>
 #include <ros/package.h>
+#include <ros/ros.h>
+#include <vector_types.h>
 
 void cloudToMat(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, cv::Mat &mat) {
 #pragma omp parallel for
   for (int row = 0; row < cloud->height; row++) {
     for (int col = 0; col < cloud->width; col++) {
       pcl::PointXYZ point = cloud->at(col, row);
-      mat.at<cv::Vec3f>(row, col)[0] = point.x;
-      mat.at<cv::Vec3f>(row, col)[1] = point.y;
-      mat.at<cv::Vec3f>(row, col)[2] = point.z;
+      mat.at<float3>(row, col).x = point.x;
+      mat.at<float3>(row, col).y = point.y;
+      mat.at<float3>(row, col).z = point.z;
     }
   }
 }
@@ -25,13 +27,12 @@ void matToCloud(cv::Mat &mat, pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud) {
   cloud->points.resize(cloud->height * cloud->width);
 
 #pragma omp parallel for
-  for (int row = 0; row < mat.rows; ++row) {
-    pcl::PointXYZ *pointXYZ = &cloud->points[row * mat.cols];
-    const cv::Vec3f *vec = mat.ptr<cv::Vec3f>(row);
-    for (size_t col = 0; col < (size_t) mat.cols; ++pointXYZ, ++vec) {
-      pointXYZ->x = vec->val[0];
-      pointXYZ->y = vec->val[1];
-      pointXYZ->z = vec->val[2];
+  for (int row = 0; row < mat.rows; row++) {
+    for (size_t col = 0; col < (size_t) mat.cols; col++) {
+      const size_t index = mat.cols * row + col;
+      cloud->points[index].x = mat.at<float3>(row, col).x;
+      cloud->points[index].y = mat.at<float3>(row, col).y;
+      cloud->points[index].z = mat.at<float3>(row, col).z;
     }
   }
 }
@@ -39,17 +40,24 @@ void matToCloud(cv::Mat &mat, pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud) {
 void visualize(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr &filteredCloud) {
   const std::string cloudName = "unfiltered";
   const std::string filteredCloudName = "filtered";
+  int viewport0 = 0;
+  int viewport1 = 1;
 
   pcl::visualization::PCLVisualizer::Ptr visualizer(new pcl::visualization::PCLVisualizer("Cloud Viewer"));
-  visualizer->initCameraParameters();
-  visualizer->setBackgroundColor(0, 0, 0);
-  visualizer->setPosition(cloud->height, 0);
-  visualizer->setSize(cloud->height, cloud->width);
-  visualizer->setShowFPS(true);
-  visualizer->setCameraPosition(0, 0, 0, 0, -1, 0);
-  visualizer->addPointCloud(cloud, cloudName);
-  visualizer->addPointCloud(filteredCloud, filteredCloudName);
+
+  visualizer->createViewPort(0.5, 0.0, 1.0, 1.0, viewport0);
+  visualizer->setBackgroundColor(0, 0, 0, viewport0);
+  visualizer->addText(cloudName, 10, 10, "right", viewport0);
+  visualizer->addPointCloud(cloud, cloudName, viewport0);
   visualizer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, cloudName);
+
+  visualizer->createViewPort(0.0, 0.0, 0.5, 1.0, viewport1);
+  visualizer->setBackgroundColor(0.1, 0.1, 0.1, viewport1);
+  visualizer->addText(filteredCloudName, 10, 10, "left", viewport1);
+  visualizer->addPointCloud(filteredCloud, filteredCloudName, viewport1);
+  visualizer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, filteredCloudName);
+
+  visualizer->initCameraParameters();
 
   while (!visualizer->wasStopped()) {
     visualizer->spinOnce(100);
@@ -69,14 +77,15 @@ int main(int argc, char** argv) {
   }
 
   cv::Mat bilateralFilterMatSrc, bilateralFilterMatDst;
-  bilateralFilterMatSrc = cv::Mat::zeros(cloud->height, cloud-> width, CV_32FC3);
-  bilateralFilterMatDst = cv::Mat::zeros(cloud->height, cloud-> width, CV_32FC3);
+  bilateralFilterMatSrc = cv::Mat::zeros(cloud->height, cloud->width, CV_32FC3);
+  bilateralFilterMatDst = cv::Mat::zeros(cloud->height, cloud->width, CV_32FC3);
   cloudToMat(cloud, bilateralFilterMatSrc);
-  bilateralFilter(bilateralFilterMatSrc, bilateralFilterMatSrc);
+  bilateralFilter(bilateralFilterMatSrc, bilateralFilterMatDst);
 
   pcl::PointCloud<pcl::PointXYZ>::Ptr bilateralFilterCloud(new pcl::PointCloud<pcl::PointXYZ>);
   matToCloud(bilateralFilterMatDst, bilateralFilterCloud);
 
+  ROS_INFO("Bilateral filter cloud point count: %zu", bilateralFilterCloud->points.size());
   visualize(cloud, bilateralFilterCloud);
 
   return (0);
