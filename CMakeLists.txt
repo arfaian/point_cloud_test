@@ -173,7 +173,7 @@ include_directories(
 # add_dependencies(point_cloud_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
-add_executable(point_cloud_test_node src/point_cloud_test_node.cpp)
+add_executable(point_cloud_test_node src/point_cloud_test_node.cpp src/node.h)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above

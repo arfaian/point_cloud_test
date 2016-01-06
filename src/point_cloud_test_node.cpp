@@ -4,9 +4,12 @@
 #include <opencv2/opencv.hpp>
 #include <pcl/io/pcd_io.h>
 #include <pcl/visualization/cloud_viewer.h>
+#include <stdlib.h>
 #include <ros/package.h>
 #include <ros/ros.h>
 #include <vector_types.h>
+
+#include "node.h"
 
 void cloudToMat(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, cv::Mat &mat) {
 #pragma omp parallel for
@@ -66,6 +69,19 @@ void visualize(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, pcl::PointCloud<pcl::
   visualizer->close();
 }
 
+int compare(const void* a, const void* b) {
+  return (0);
+}
+
+void createKdTree(unsigned char* pointList, int numPoints, int depth=0) {
+  int axis = depth % 3;
+
+  int median = numPoints / 2;
+
+  Node node;
+  //node.
+}
+
 void bilateralFilter(const cv::Mat& src_host, cv::Mat& dst_host);
 
 int main(int argc, char** argv) {
@@ -81,6 +97,10 @@ int main(int argc, char** argv) {
   bilateralFilterMatDst = cv::Mat::zeros(cloud->height, cloud->width, CV_32FC3);
   cloudToMat(cloud, bilateralFilterMatSrc);
   bilateralFilter(bilateralFilterMatSrc, bilateralFilterMatDst);
+
+  unsigned char* pointList = bilateralFilterMatSrc.ptr(0);
+  qsort(pointList, bilateralFilterMatSrc.rows * bilateralFilterMatSrc.cols, sizeof(float3), compare);
+  createKdTree(pointList);
 
   pcl::PointCloud<pcl::PointXYZ>::Ptr bilateralFilterCloud(new pcl::PointCloud<pcl::PointXYZ>);
   matToCloud(bilateralFilterMatDst, bilateralFilterCloud);
