@@ -74,7 +74,7 @@ int compareX(const void* a, const void* b) {
   float arg2 = ((float3*) b)->x;
   if (arg1 < arg2) return -1;
   if (arg1 > arg2) return 1;
-  return (0);
+  return 0;
 }
 
 int compareY(const void* a, const void* b) {
@@ -82,7 +82,7 @@ int compareY(const void* a, const void* b) {
   float arg2 = ((float3*) b)->y;
   if (arg1 < arg2) return -1;
   if (arg1 > arg2) return 1;
-  return (0);
+  return 0;
 }
 
 int compareZ(const void* a, const void* b) {
@@ -90,7 +90,7 @@ int compareZ(const void* a, const void* b) {
   float arg2 = ((float3*) b)->z;
   if (arg1 < arg2) return -1;
   if (arg1 > arg2) return 1;
-  return (0);
+  return 0;
 }
 
 const int float3size = sizeof(float3);
@@ -100,6 +100,11 @@ Node* createKdTree(float3** pointList, int numPoints, int depth=0) {
 
   if (numPoints == 0) return NULL;
 
+  if (*pointList == NULL) {
+    printf("Null point list");
+  }
+
+  /*
   switch (axis) {
     case 0:
       std::qsort(pointList, numPoints, sizeof(float3*), compareX);
@@ -111,19 +116,20 @@ Node* createKdTree(float3** pointList, int numPoints, int depth=0) {
       std::qsort(pointList, numPoints, sizeof(float3*), compareZ);
       break;
   }
+   */
 
   int median = numPoints / 2;
 
   Node* node = new Node;
-  node->location = *(pointList + (median * float3size));
-  node->left = createKdTree(pointList, median);
-  node->right = createKdTree(pointList + (median * float3size) + float3size, numPoints - median - 1);
+  node->location = pointList[median];
+  node->left = createKdTree(pointList, median, depth + 1);
+  node->right = createKdTree(pointList + (median + 1), numPoints - median - 1, depth + 1);
   return node;
 }
 
 void printNodes(Node* node) {
   if (&node == NULL) return;
-  float3 location = *(const float3*) node->location;
+  float3 location = *node->location;
   printf("(%f, %f, %f)", location.x, location.y, location.z);
   printNodes(node->left);
   printNodes(node->right);
@@ -147,13 +153,26 @@ int main(int argc, char** argv) {
   int numPoints = bilateralFilterMatSrc.rows * bilateralFilterMatSrc.cols;
   float3** pointList = new float3*[numPoints];
   for (int row = 0; row < bilateralFilterMatSrc.rows; ++row) {
-    printf("row: %i\n", row);
+    //printf("row: %i\n", row);
     int base = row * bilateralFilterMatSrc.rows;
     for (int col = 0; col < bilateralFilterMatSrc.cols; ++col) {
       int base = row * bilateralFilterMatSrc.rows;
-      printf("base: %i\n", base);
-      printf("col: %i\n", col);
+      //printf("base: %i\n", base);
+      //printf("col: %i\n", col);
+      if (bilateralFilterMatSrc.ptr<float3>(row, col) == NULL) {
+        printf("NULL");
+      }
       pointList[base + col] = bilateralFilterMatSrc.ptr<float3>(row, col);
+      if (pointList[base + col] == NULL) {
+        printf("NULL");
+      }
+    }
+  }
+
+  float3** newPointList = pointList;
+  for (int i = 0; i < numPoints; ++i, ++newPointList) {
+    if (*newPointList == NULL) {
+      printf("NULL");
     }
   }
   Node* root = createKdTree(pointList, numPoints);
