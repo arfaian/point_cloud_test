@@ -69,20 +69,67 @@ void visualize(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, pcl::PointCloud<pcl::
   visualizer->close();
 }
 
-int compare(const void* a, const void* b) {
+int compareX(const void* a, const void* b) {
+  float arg1 = ((float3*) a)->x;
+  float arg2 = ((float3*) b)->x;
+  if (arg1 < arg2) return -1;
+  if (arg1 > arg2) return 1;
   return (0);
 }
 
-void createKdTree(unsigned char* pointList, int numPoints, int depth=0) {
+int compareY(const void* a, const void* b) {
+  float arg1 = ((float3*) a)->y;
+  float arg2 = ((float3*) b)->y;
+  if (arg1 < arg2) return -1;
+  if (arg1 > arg2) return 1;
+  return (0);
+}
+
+int compareZ(const void* a, const void* b) {
+  float arg1 = ((float3*) a)->z;
+  float arg2 = ((float3*) b)->z;
+  if (arg1 < arg2) return -1;
+  if (arg1 > arg2) return 1;
+  return (0);
+}
+
+const int float3size = sizeof(float3);
+
+Node* createKdTree(float3** pointList, int numPoints, int depth=0) {
   int axis = depth % 3;
+
+  if (numPoints == 0) return NULL;
+
+  switch (axis) {
+    case 0:
+      std::qsort(pointList, numPoints, sizeof(float3*), compareX);
+      break;
+    case 1:
+      std::qsort(pointList, numPoints, sizeof(float3*), compareY);
+      break;
+    case 2:
+      std::qsort(pointList, numPoints, sizeof(float3*), compareZ);
+      break;
+  }
 
   int median = numPoints / 2;
 
-  Node node;
-  //node.
+  Node* node = new Node;
+  node->location = *(pointList + (median * float3size));
+  node->left = createKdTree(pointList, median);
+  node->right = createKdTree(pointList + (median * float3size) + float3size, numPoints - median - 1);
+  return node;
 }
 
-void bilateralFilter(const cv::Mat& src_host, cv::Mat& dst_host);
+void printNodes(Node* node) {
+  if (&node == NULL) return;
+  float3 location = *(const float3*) node->location;
+  printf("(%f, %f, %f)", location.x, location.y, location.z);
+  printNodes(node->left);
+  printNodes(node->right);
+}
+
+void bilateralFilter(const cv::Mat& src_host, cv::Mat& dst_host, Node* hostKdTree);
 
 int main(int argc, char** argv) {
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
@@ -96,11 +143,23 @@ int main(int argc, char** argv) {
   bilateralFilterMatSrc = cv::Mat::zeros(cloud->height, cloud->width, CV_32FC3);
   bilateralFilterMatDst = cv::Mat::zeros(cloud->height, cloud->width, CV_32FC3);
   cloudToMat(cloud, bilateralFilterMatSrc);
-  bilateralFilter(bilateralFilterMatSrc, bilateralFilterMatDst);
 
-  unsigned char* pointList = bilateralFilterMatSrc.ptr(0);
-  qsort(pointList, bilateralFilterMatSrc.rows * bilateralFilterMatSrc.cols, sizeof(float3), compare);
-  createKdTree(pointList);
+  int numPoints = bilateralFilterMatSrc.rows * bilateralFilterMatSrc.cols;
+  float3** pointList = new float3*[numPoints];
+  for (int row = 0; row < bilateralFilterMatSrc.rows; ++row) {
+    printf("row: %i\n", row);
+    int base = row * bilateralFilterMatSrc.rows;
+    for (int col = 0; col < bilateralFilterMatSrc.cols; ++col) {
+      int base = row * bilateralFilterMatSrc.rows;
+      printf("base: %i\n", base);
+      printf("col: %i\n", col);
+      pointList[base + col] = bilateralFilterMatSrc.ptr<float3>(row, col);
+    }
+  }
+  Node* root = createKdTree(pointList, numPoints);
+
+  printNodes(root);
+  bilateralFilter(bilateralFilterMatSrc, bilateralFilterMatDst, root);
 
   pcl::PointCloud<pcl::PointXYZ>::Ptr bilateralFilterCloud(new pcl::PointCloud<pcl::PointXYZ>);
   matToCloud(bilateralFilterMatDst, bilateralFilterCloud);

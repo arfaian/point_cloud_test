@@ -29,8 +29,7 @@ const float SIGMA_SPACE = 4.5;    // in pixels
 __global__ void bilateral_kernel(const cv::gpu::PtrStepSz<float3> src,
                                  cv::gpu::PtrStep<float3> dst,
                                  float sigma_space2_inv_half,
-                                 float sigma_color2_inv_half,
-                                 Node* kdTree) {
+                                 float sigma_color2_inv_half) {
   int x = threadIdx.x + blockIdx.x * blockDim.x;
   int y = threadIdx.y + blockIdx.y * blockDim.y;
 
@@ -43,7 +42,7 @@ int divUp(int total, int grain) {
   return (total + grain - 1) / grain;
 }
 
-void bilateralFilter(const cv::Mat& src_host, cv::Mat& dst_host, Node& hostKdTree) {
+void bilateralFilter(const cv::Mat& src_host, cv::Mat& dst_host, Node* hostKdTree) {
   dim3 block(32, 8);
   dim3 grid(divUp(src_host.cols, block.x), divUp(src_host.rows, block.y));
 
@@ -51,15 +50,13 @@ void bilateralFilter(const cv::Mat& src_host, cv::Mat& dst_host, Node& hostKdTre
 
   cv::gpu::GpuMat src_device(src_host), dst_device(src_host.rows, src_host.cols, src_host.type());
 
-  Node* deviceKdTree;
-  cudaMalloc((void **) deviceKdTree, sizeof(hostKdTree));
+  //cudaMalloc((void **) deviceKdTree, sizeof(hostKdTree));
 
   bilateral_kernel<<<grid, block>>>(
       src_device,
       dst_device,
       0.5f / (SIGMA_SPACE * SIGMA_SPACE),
-      0.5f / (SIGMA_COLOR * SIGMA_COLOR),
-      deviceKdTree
+      0.5f / (SIGMA_COLOR * SIGMA_COLOR)
   );
 
   gpuErrchk(cudaPeekAtLastError());

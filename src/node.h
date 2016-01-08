@@ -8,11 +8,9 @@
 #include <vector_types.h>
 
 struct Node {
-  const int step = sizeof(float3);
-  int pointOffset;
-  int numberOfPoints;
-  int leftOffset;
-  int rightOffset;
+  float3* location;
+  Node* left;
+  Node* right;
 };
 
 #endif //POINT_CLOUD_TEST_NODE_H
