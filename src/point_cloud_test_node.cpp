@@ -3,10 +3,23 @@
 
 #include <opencv2/opencv.hpp>
 #include <pcl/io/pcd_io.h>
+#include <pcl/point_representation.h>
+
+#include <pcl/filters/voxel_grid.h>
+
+#include <pcl/features/normal_3d.h>
+
+#include <pcl/registration/icp.h>
+#include <pcl/registration/icp_nl.h>
+
+#include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/visualization/cloud_viewer.h>
-#include <stdlib.h>
+
 #include <ros/package.h>
 #include <ros/ros.h>
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
+#include <thrust/sort.h>
 #include <vector_types.h>
 
 #include "node.h"
@@ -26,7 +39,6 @@ void cloudToMat(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, cv::Mat &mat) {
 void matToCloud(cv::Mat &mat, pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud) {
   cloud->height = mat.rows;
   cloud->width = mat.cols;
-  cloud->is_dense = false;
   cloud->points.resize(cloud->height * cloud->width);
 
 #pragma omp parallel for
@@ -95,16 +107,15 @@ int compareZ(const void* a, const void* b) {
 
 const int float3size = sizeof(float3);
 
-Node* createKdTree(float3** pointList, int numPoints, int depth=0) {
-  int axis = depth % 3;
-
+Node* createKdTree(float3* pointList, int numPoints, int depth=0) {
   if (numPoints == 0) return NULL;
 
-  if (*pointList == NULL) {
+  int axis = depth % 3;
+
+  if (pointList == NULL) {
     printf("Null point list");
   }
 
-  /*
   switch (axis) {
     case 0:
       std::qsort(pointList, numPoints, sizeof(float3*), compareX);
@@ -116,26 +127,26 @@ Node* createKdTree(float3** pointList, int numPoints, int depth=0) {
       std::qsort(pointList, numPoints, sizeof(float3*), compareZ);
       break;
   }
-   */
 
   int median = numPoints / 2;
 
   Node* node = new Node;
-  node->location = pointList[median];
+  node->location = &pointList[median];
   node->left = createKdTree(pointList, median, depth + 1);
   node->right = createKdTree(pointList + (median + 1), numPoints - median - 1, depth + 1);
   return node;
 }
 
 void printNodes(Node* node) {
-  if (&node == NULL) return;
+  if (node == NULL) return;
   float3 location = *node->location;
-  printf("(%f, %f, %f)", location.x, location.y, location.z);
+  printf("(%f, %f, %f)\n", location.x, location.y, location.z);
   printNodes(node->left);
   printNodes(node->right);
 }
 
 void bilateralFilter(const cv::Mat& src_host, cv::Mat& dst_host, Node* hostKdTree);
+void bilateralFilter2(const float3* pointList, int n);
 
 int main(int argc, char** argv) {
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
@@ -145,6 +156,23 @@ int main(int argc, char** argv) {
     return (-1);
   }
 
+  std::vector<int> indices;
+  pcl::removeNaNFromPointCloud(*cloud, *cloud, indices);
+
+  float3* pts = new float3[cloud->points.size()];
+#pragma omp parallel for
+  for (int i = 0; i < cloud->points.size(); ++i, ++pts) {
+    pcl::PointXYZ p = cloud->points.at(0);
+    float3 newP;
+    newP.x = p.x;
+    newP.y = p.y;
+    newP.z = p.z;
+    pts[i] = newP;
+  }
+
+  bilateralFilter2(pts, cloud->points.size());
+
+  /*
   cv::Mat bilateralFilterMatSrc, bilateralFilterMatDst;
   bilateralFilterMatSrc = cv::Mat::zeros(cloud->height, cloud->width, CV_32FC3);
   bilateralFilterMatDst = cv::Mat::zeros(cloud->height, cloud->width, CV_32FC3);
@@ -153,26 +181,10 @@ int main(int argc, char** argv) {
   int numPoints = bilateralFilterMatSrc.rows * bilateralFilterMatSrc.cols;
   float3** pointList = new float3*[numPoints];
   for (int row = 0; row < bilateralFilterMatSrc.rows; ++row) {
-    //printf("row: %i\n", row);
-    int base = row * bilateralFilterMatSrc.rows;
-    for (int col = 0; col < bilateralFilterMatSrc.cols; ++col) {
-      int base = row * bilateralFilterMatSrc.rows;
-      //printf("base: %i\n", base);
-      //printf("col: %i\n", col);
-      if (bilateralFilterMatSrc.ptr<float3>(row, col) == NULL) {
-        printf("NULL");
-      }
-      pointList[base + col] = bilateralFilterMatSrc.ptr<float3>(row, col);
-      if (pointList[base + col] == NULL) {
-        printf("NULL");
-      }
-    }
-  }
-
-  float3** newPointList = pointList;
-  for (int i = 0; i < numPoints; ++i, ++newPointList) {
-    if (*newPointList == NULL) {
-      printf("NULL");
+    int base = row * bilateralFilterMatSrc.cols;
+    float3* rowPtr = bilateralFilterMatSrc.ptr<float3>(row);
+    for (int col = 0; col < bilateralFilterMatSrc.cols; ++col, ++rowPtr) {
+      pointList[base + col] = rowPtr;
     }
   }
   Node* root = createKdTree(pointList, numPoints);
@@ -185,6 +197,7 @@ int main(int argc, char** argv) {
 
   ROS_INFO("Bilateral filter cloud point count: %zu", bilateralFilterCloud->points.size());
   visualize(cloud, bilateralFilterCloud);
+  */
 
   return (0);
 }

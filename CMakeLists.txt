@@ -34,7 +34,8 @@ endif()
 
 set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};
-  -gencode arch=compute_52,code=sm_52 -g -G
+  -g -G
+  -gencode arch=compute_52,code=sm_52
   -gencode arch=compute_50,code=sm_50
 )
 set(CUDA_VERBOSE_BUILD ON)
