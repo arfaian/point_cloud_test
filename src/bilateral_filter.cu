@@ -169,9 +169,15 @@ int compareZ(const float3* a, const float3* b) {
   return 0;
 }
 
-__device__
-Node* createKdTree(float3* data, int numPoints, int depth=0) {
-  if (numPoints == 0) return NULL;
+__global__
+void createKdTree(Node* parent, float3* data, int numPoints, int depth=0) {
+  printf("Depth: %i, numPoints: %i", depth, numPoints);
+  if (numPoints == 0) {
+    parent = NULL;
+    return;
+  } else {
+    parent = new Node;
+  }
 
   int axis = depth % 3;
 
@@ -192,24 +198,34 @@ Node* createKdTree(float3* data, int numPoints, int depth=0) {
 
   int median = numPoints / 2;
 
-  Node* node = new Node;
-  node->location = &data[median];
-  node->left = createKdTree(data, median, depth + 1);
-  node->right = createKdTree(data + (median + 1), numPoints - median - 1, depth + 1);
-  return node;
+  parent->location = &data[median];
+
+  cudaStream_t s;
+  cudaStreamCreateWithFlags(&s, cudaStreamNonBlocking);
+  printf("Launching left createKdTree kernel from createKdTreeKernel");
+  createKdTree<<<1, 1, 0, s>>>(parent->left, data, median, depth + 1);
+  cudaStreamDestroy(s);
+
+  cudaStream_t s1;
+  cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
+  printf("Launching right createKdTree kernel from createKdTreeKernel");
+  createKdTree<<<1, 1, 0, s1>>>(parent->right, data + (median + 1), numPoints - median - 1, depth + 1);
+  cudaStreamDestroy(s1);
 }
 
 __global__
 void bilateral_kernel2(float3* pointList, int n) {
-  Node* tree = createKdTree(pointList, n);
+  Node* tree = 0;
+  printf("Launching createKdTree kernel from bilateral_kernel2");
+  createKdTree<<<1, 1>>>(tree, pointList, n);
 }
 
 void bilateralFilter2(const float3* pointList, int n) {
   checkCudaErrors(cudaDeviceSetLimit(cudaLimitDevRuntimeSyncDepth, MAX_DEPTH));
 
   float3* device_pointList;
-  cudaMalloc((void **) &device_pointList, n * sizeof(Node));
-  cudaMemcpy(device_pointList, pointList, n * sizeof(Node), cudaMemcpyHostToDevice);
+  cudaMalloc(&device_pointList, n * sizeof(float3));
+  cudaMemcpy(device_pointList, pointList, n * sizeof(float3), cudaMemcpyHostToDevice);
   bilateral_kernel2<<<1, 1>>>(device_pointList, n);
   gpuErrchk(cudaPeekAtLastError());
   gpuErrchk(cudaDeviceSynchronize());

@@ -160,7 +160,7 @@ int main(int argc, char** argv) {
   pcl::removeNaNFromPointCloud(*cloud, *cloud, indices);
 
   float3* pts = new float3[cloud->points.size()];
-  for (int i = 0; i < cloud->points.size(); ++i, ++pts) {
+  for (int i = 0; i < cloud->points.size(); ++i) {
     pcl::PointXYZ p = cloud->points.at(0);
     float3 newP;
     newP.x = p.x;
