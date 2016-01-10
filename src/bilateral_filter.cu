@@ -142,6 +142,7 @@ void bilateralFilter(const cv::Mat& src_host, cv::Mat& dst_host, Node* hostKdTre
   dst_device.download(dst_host);
 }
 
+__device__
 int compareX(const float3* a, const float3* b) {
   float arg1 = a->x;
   float arg2 = b->x;
@@ -150,6 +151,7 @@ int compareX(const float3* a, const float3* b) {
   return 0;
 }
 
+__device__
 int compareY(const float3* a, const float3* b) {
   float arg1 = a->x;
   float arg2 = b->x;
@@ -158,6 +160,7 @@ int compareY(const float3* a, const float3* b) {
   return 0;
 }
 
+__device__
 int compareZ(const float3* a, const float3* b) {
   float arg1 = a->x;
   float arg2 = b->x;

@@ -33,6 +33,8 @@ endif()
 ###############################################
 
 set(CUDA_PROPAGATE_HOST_FLAGS OFF)
+set(CUDA_SEPARABLE_COMPILATION ON)
+set(CUDA_LIBRARIES ${CUDA_LIBRARIES} -lcudadevrt)
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};
   -g -G
   -gencode arch=compute_52,code=sm_52
@@ -159,6 +161,7 @@ catkin_package(
 # include_directories(include)
 include_directories(
   ${catkin_INCLUDE_DIRS}
+  ${CUDA_LIBRARIES}
   ${OpenCV_INCLUDE_DIR}
   ${PCL_INCLUDE_DIRS}
 )

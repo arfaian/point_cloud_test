@@ -17,9 +17,7 @@
 
 #include <ros/package.h>
 #include <ros/ros.h>
-#include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
-#include <thrust/sort.h>
+
 #include <vector_types.h>
 
 #include "node.h"
@@ -107,6 +105,7 @@ int compareZ(const void* a, const void* b) {
 
 const int float3size = sizeof(float3);
 
+/*
 Node* createKdTree(float3* pointList, int numPoints, int depth=0) {
   if (numPoints == 0) return NULL;
 
@@ -136,6 +135,7 @@ Node* createKdTree(float3* pointList, int numPoints, int depth=0) {
   node->right = createKdTree(pointList + (median + 1), numPoints - median - 1, depth + 1);
   return node;
 }
+*/
 
 void printNodes(Node* node) {
   if (node == NULL) return;
@@ -160,7 +160,6 @@ int main(int argc, char** argv) {
   pcl::removeNaNFromPointCloud(*cloud, *cloud, indices);
 
   float3* pts = new float3[cloud->points.size()];
-#pragma omp parallel for
   for (int i = 0; i < cloud->points.size(); ++i, ++pts) {
     pcl::PointXYZ p = cloud->points.at(0);
     float3 newP;
